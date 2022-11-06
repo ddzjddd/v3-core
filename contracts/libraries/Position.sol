@@ -27,6 +27,7 @@ library Position {
     /// @param tickLower The lower tick boundary of the position
     /// @param tickUpper The upper tick boundary of the position
     /// @return position The position info struct of the given owners' position
+    ///以头寸拥有者（地址）、tick下界、tick上界拼接后取哈希作为key，映射头寸信息
     function get(
         mapping(bytes32 => Info) storage self,
         address owner,
