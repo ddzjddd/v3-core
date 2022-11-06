@@ -107,6 +107,7 @@ library Tick {
     /// @param upper true for updating a position's upper tick, or false for updating a position's lower tick
     /// @param maxLiquidity The maximum liquidity allocation for a single tick
     /// @return flipped Whether the tick was flipped from initialized to uninitialized, or vice versa
+    /// 此函数是用于更新头寸的tick上边界和下边界相关信息，包括边界的引用状态是否发生变化，边界上的流动性增量（指的是从左到右穿越tick时，流动性变化量）
     function update(
         mapping(int24 => Tick.Info) storage self,
         int24 tick,
