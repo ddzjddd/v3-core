@@ -623,9 +623,12 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
                 tickCumulative: 0,
                 computedLatestObservation: false
             });
-
+        //根据输入的数量来判断是In还是Out模式，卖出的token数量为正数，买入的token数量为负数，也可以理解为站在pool的角度来看，在交换结束后，池子代币的增量
+        //In和Out模式和zeroForOne标志没有关系，前者用来标注指定的是用户交易的偏好方式，后者则是用来指定交易对属性的排序，两者的定义不在一个维度
         bool exactInput = amountSpecified > 0;
-
+        
+        //这个变量用来记录每次循环开始时的系统状态，比较重要的包括剩余要交换的token数量，已经交换的数量，当前价格，当前tick，token上的交易费用（单位流动性），
+        //当前pool的流动性（这里有个疑问，这个流动性是这个交易对的总流动性？不区分头寸区间记录么？所以笔者认为这个记录的是区间头寸的流动性）
         SwapState memory state =
             SwapState({
                 amountSpecifiedRemaining: amountSpecified,
@@ -642,7 +645,8 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
             StepComputations memory step;
 
             step.sqrtPriceStartX96 = state.sqrtPriceX96;
-
+            //在同一个word范围内寻找tick的下一个边界，存在两种情况：1、找到的边界是初始化过的（意思是有头寸以此tick为边界）；
+            //2、找到的边界是没有初始化的，那这个边界肯定是word范围的边界，可能是开始边界，也可能是结束边界
             (step.tickNext, step.initialized) = tickBitmap.nextInitializedTickWithinOneWord(
                 state.tick,
                 tickSpacing,
@@ -690,6 +694,7 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
                 state.feeGrowthGlobalX128 += FullMath.mulDiv(step.feeAmount, FixedPoint128.Q128, state.liquidity);
 
             // shift tick if we reached the next price
+            //如果达到了tick边界对应的区间价格，则说明在该头寸区间没有完全交换完输入的token数量，需要进入到下一个区间继续进行交换操作
             if (state.sqrtPriceX96 == step.sqrtPriceNextX96) {
                 // if the tick is initialized, run the tick transition
                 if (step.initialized) {
@@ -718,11 +723,13 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
                     // if we're moving leftward, we interpret liquidityNet as the opposite sign
                     // safe because liquidityNet cannot be type(int128).min
                     if (zeroForOne) liquidityNet = -liquidityNet;
-
+                    //在穿越边界的时候，需要更新流动性
                     state.liquidity = LiquidityMath.addDelta(state.liquidity, liquidityNet);
                 }
-
+                //为什么这里要做这种判断？x兑换y，x的价格下降，tick往左走，跟tick存储的边界开闭有关系？同一个word内的判断是左闭右开，所以往左走可能走到了
+                //一个word的右边界和一个word的左边界，这个时候要跳转到左边的word，因为左闭右开，所以如果不减1，那么是无法跳转到相邻word的
                 state.tick = zeroForOne ? step.tickNext - 1 : step.tickNext;
+            //如果没有到达下一个tick对应的价格，则计算下交换结束时的价格所对应的tick（笔者隐约记得，tick的取值原则为从小于等于的方向去逼近价格）
             } else if (state.sqrtPriceX96 != step.sqrtPriceStartX96) {
                 // recompute unless we're on a lower tick boundary (i.e. already transitioned ticks), and haven't moved
                 state.tick = TickMath.getTickAtSqrtRatio(state.sqrtPriceX96);
@@ -752,8 +759,10 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
         }
 
         // update liquidity if it changed
+        //cache变量用于缓存循环开始时state相关变量，然后与循环结束后的state比对，进而对全局流动性变量做更新
         if (cache.liquidityStart != state.liquidity) liquidity = state.liquidity;
 
+        //在交换结束后更新手续费积累？？？手续费这里有疑问：每个区间的手续费应该是区分记录的吧，是在tick边界上记录的？然后用两个边界记录值相减？
         // update fee growth global and, if necessary, protocol fees
         // overflow is acceptable, protocol has to withdraw before it hits type(uint128).max fees
         if (zeroForOne) {
@@ -763,7 +772,7 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
             feeGrowthGlobal1X128 = state.feeGrowthGlobalX128;
             if (state.protocolFee > 0) protocolFees.token1 += state.protocolFee;
         }
-
+        //swap函数返是按照：x数量，y数量，格式返回的
         (amount0, amount1) = zeroForOne == exactInput
             ? (amountSpecified - state.amountSpecifiedRemaining, state.amountCalculated)
             : (state.amountCalculated, amountSpecified - state.amountSpecifiedRemaining);
