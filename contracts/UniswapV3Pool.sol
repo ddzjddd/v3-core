@@ -714,7 +714,9 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
                     int128 liquidityNet =
                         ticks.cross(
                             step.tickNext,
+                            //当x兑换y，state中存储的是x的全局累计手续费，当y兑换x，state中存储的是y的全局累计手续费，此处参数要求的是x的全局累计手续费
                             (zeroForOne ? state.feeGrowthGlobalX128 : feeGrowthGlobal0X128),
+                            //当x兑换y，state中存储的是x的全局累计手续费，当y兑换x，state中存储的是y的全局累计手续费，此处参数要求的是y的全局累计手续费
                             (zeroForOne ? feeGrowthGlobal1X128 : state.feeGrowthGlobalX128),
                             cache.secondsPerLiquidityCumulativeX128,
                             cache.tickCumulative,
