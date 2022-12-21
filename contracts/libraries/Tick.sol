@@ -57,6 +57,7 @@ library Tick {
     /// @param feeGrowthGlobal1X128 The all-time global fee growth, per unit of liquidity, in token1
     /// @return feeGrowthInside0X128 The all-time fee growth in token0, per unit of liquidity, inside the position's tick boundaries
     /// @return feeGrowthInside1X128 The all-time fee growth in token1, per unit of liquidity, inside the position's tick boundaries
+    //通过outside fee计算出lowwer的左侧区间累计费用和upper右侧区间累计费用，然后用整个区间费用减去前面两个区间的费用，就会得到区间内的费用
     function getFeeGrowthInside(
         mapping(int24 => Tick.Info) storage self,
         int24 tickLower,
@@ -166,6 +167,7 @@ library Tick {
     /// @param tickCumulative The tick * time elapsed since the pool was first initialized
     /// @param time The current block.timestamp
     /// @return liquidityNet The amount of liquidity added (subtracted) when tick is crossed from left to right (right to left)
+    //用来在价格跨过头寸边界时，更新头寸边界信息，更新外侧（outside）变量，以及返回穿越边界时流动性变化量
     function cross(
         mapping(int24 => Tick.Info) storage self,
         int24 tick,
