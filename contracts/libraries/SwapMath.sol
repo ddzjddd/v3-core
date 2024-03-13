@@ -35,14 +35,20 @@ library SwapMath {
         )
     {
         bool zeroForOne = sqrtRatioCurrentX96 >= sqrtRatioTargetX96;
+        //在A换B的情况下，在池子的角度，指定精确的A数量，是入池子，所以叫做exactIn模式；如果是指定精确的B数量，是出池子，所以叫exactOut模式。
+        //入池子的数量在池子看来是增，所以是正数；出池子的数量在池子看来是减，所以是负数。
         bool exactIn = amountRemaining >= 0;
-
+        //在精确指定入池子数量的情况下，要依据精确指定的数量进行后续的计算
         if (exactIn) {
             uint256 amountRemainingLessFee = FullMath.mulDiv(uint256(amountRemaining), 1e6 - feePips, 1e6);
+            //如果是x换y，则计算x的在指定价格变动跨度后，消耗的x的数量
+            //如果是y换x，则计算y的在指定价格变动跨度后，消耗的y的数量
             amountIn = zeroForOne
                 ? SqrtPriceMath.getAmount0Delta(sqrtRatioTargetX96, sqrtRatioCurrentX96, liquidity, true)
                 : SqrtPriceMath.getAmount1Delta(sqrtRatioCurrentX96, sqrtRatioTargetX96, liquidity, true);
+            //如果在上述价格区间内，无法消耗完用户指定的数量，则要进入到下一头寸区间继续进行swap操作；更新本次交换完后，x的价格情况（合约中只存储x的价格，这里价格的含义是每单位x等价于多少y，就是以y作为基本衡量单位）
             if (amountRemainingLessFee >= amountIn) sqrtRatioNextX96 = sqrtRatioTargetX96;
+            //如果能够消耗完用户指定的数量，则计算恰好消耗完用户指定的数量会使价格达到什么值
             else
                 sqrtRatioNextX96 = SqrtPriceMath.getNextSqrtPriceFromInput(
                     sqrtRatioCurrentX96,
@@ -51,6 +57,7 @@ library SwapMath {
                     zeroForOne
                 );
         } else {
+            //精确指定出池子数量与上述不同之处在于，要依据用户指定的输出数量来进行后续的计算
             amountOut = zeroForOne
                 ? SqrtPriceMath.getAmount1Delta(sqrtRatioTargetX96, sqrtRatioCurrentX96, liquidity, false)
                 : SqrtPriceMath.getAmount0Delta(sqrtRatioCurrentX96, sqrtRatioTargetX96, liquidity, false);
@@ -63,18 +70,22 @@ library SwapMath {
                     zeroForOne
                 );
         }
-
+        //判断价格是否达到头寸边界的价格
         bool max = sqrtRatioTargetX96 == sqrtRatioNextX96;
 
         // get the input/output amounts
         if (zeroForOne) {
+            //如果达到了头寸边界的价格并且是exactIn模式，则以前序计算出来的amountIn为准
+            //其他情况，比如没有达到边界价格，那么前面计算出来的amountIn是偏大的，以为是以边界价格来计算的；比如不是exactIn模型，那前序根本就没有计算amountIn的值。所以要重新计算amoutIn的值，依据交换完后的实际价格来计算amountIn数量
             amountIn = max && exactIn
                 ? amountIn
                 : SqrtPriceMath.getAmount0Delta(sqrtRatioNextX96, sqrtRatioCurrentX96, liquidity, true);
+            //如果达到了头寸边界的价格并且是exactOut模式，则以前序计算出来的amountOut为准
             amountOut = max && !exactIn
                 ? amountOut
                 : SqrtPriceMath.getAmount1Delta(sqrtRatioNextX96, sqrtRatioCurrentX96, liquidity, false);
         } else {
+            //与前一分支的区别在于，前面是x换y，这里是y换x（x对应getAmount0Delta，y对应getAmount1Delta）
             amountIn = max && exactIn
                 ? amountIn
                 : SqrtPriceMath.getAmount1Delta(sqrtRatioCurrentX96, sqrtRatioNextX96, liquidity, true);
