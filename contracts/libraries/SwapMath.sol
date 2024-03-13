@@ -95,10 +95,12 @@ library SwapMath {
         }
 
         // cap the output amount to not exceed the remaining output amount
+        //控制计算出来的出池子的数量不能超过用户指定的数量
         if (!exactIn && amountOut > uint256(-amountRemaining)) {
             amountOut = uint256(-amountRemaining);
         }
 
+        //如果在当前头寸区间已经完成交换，那针对计算出来的入池数量与用户指定数量之间的差值（因为入池的实际数量会向下取整，使得实际入池的数量小于等于用户指定的数量，但是在扣除用户的入池代币数量时，又是按照用户指定数量transfer的），作为手续费
         if (exactIn && sqrtRatioNextX96 != sqrtRatioTargetX96) {
             // we didn't reach the target, so take the remainder of the maximum input as fee
             feeAmount = uint256(amountRemaining) - amountIn;
