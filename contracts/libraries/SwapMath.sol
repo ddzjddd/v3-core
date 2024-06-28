@@ -35,10 +35,12 @@ library SwapMath {
         )
     {
         bool zeroForOne = sqrtRatioCurrentX96 >= sqrtRatioTargetX96;
-        //在A换B的情况下，在池子的角度，指定精确的A数量，是入池子，所以叫做exactIn模式；如果是指定精确的B数量，是出池子，所以叫exactOut模式。
+        //在x换y的情况下，在池子的角度，指定精确的x数量，是入池子，所以叫做exactIn模式；如果是指定精确的y数量，是出池子，所以叫exactOut模式。
         //入池子的数量在池子看来是增，所以是正数；出池子的数量在池子看来是减，所以是负数。
         bool exactIn = amountRemaining >= 0;
-        //在精确指定入池子数量的情况下，要依据精确指定的数量进行后续的计算
+
+        //根据amountRemaining，即用户指定的token数来进行后续计算；
+        //如果是exactIn，则要先计算amountIn。该情况下又细分为x换y（amountIn为x的数量）、y换x（amountIn为y的数量）两种情况。计算amountIn的数量要roundup，保证入池的数量要大于等于数值计算的精确值。
         if (exactIn) {
             uint256 amountRemainingLessFee = FullMath.mulDiv(uint256(amountRemaining), 1e6 - feePips, 1e6);
             //如果是x换y，则计算x的在指定价格变动跨度后，消耗的x的数量
@@ -57,7 +59,7 @@ library SwapMath {
                     zeroForOne
                 );
         } else {
-            //精确指定出池子数量与上述不同之处在于，要依据用户指定的输出数量来进行后续的计算
+            //如果是exactOut，则要先计算amountOut。该情况下又细分为x换y（amountOut为y的数量）、y换x（amountOut为x的数量）两种情况。计算amountOut的数量要rounddown，保证出池的数量要小于等于数值计算的精确值。
             amountOut = zeroForOne
                 ? SqrtPriceMath.getAmount1Delta(sqrtRatioTargetX96, sqrtRatioCurrentX96, liquidity, false)
                 : SqrtPriceMath.getAmount0Delta(sqrtRatioCurrentX96, sqrtRatioTargetX96, liquidity, false);
